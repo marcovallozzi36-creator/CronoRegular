@@ -86,6 +86,7 @@
     .topbar-title { font-weight:700; }
     .topbar-small { font-size:.7rem; opacity:.7; }
     .topbar-right { display:flex; gap:.5rem; align-items:center; }
+
     header {
       text-align: center;
       padding: 1rem 0 0.5rem 0;
@@ -156,15 +157,21 @@
     }
     .diff-green { color:#22c55e; font-weight:600; }
     .diff-red { color:#ef4444; font-weight:600; }
+
     .points-form {
       display:grid;
       grid-template-columns: repeat(8, minmax(90px, 1fr));
       gap:.8rem;
       align-items: end;
     }
+
     .actions-cell { display:flex; gap:.3rem; flex-wrap:wrap; }
-    #chartCard { display:none; }
+
+    #chartCard {
+      display:none;
+    }
     .muted { opacity:.6; font-size:.7rem; }
+
     .etapas-list {
       display: flex;
       flex-wrap: wrap;
@@ -189,13 +196,16 @@
     .etapa-name { cursor: pointer; }
     .etapa-total { font-size: .7rem; opacity: .8; }
     .footer-summary { margin-top: .5rem; font-weight: 600; }
+
     .inline-timer {
       font-size: .8rem;
       font-weight: 600;
       opacity: .8;
       margin-right: .7rem;
     }
+
     #pdfChartCanvas { display:none; }
+
     .adj-arrow {
       margin-right:.25rem;
       font-weight:700;
@@ -206,6 +216,39 @@
     .table-wrapper {
       width: 100%;
       overflow-x: auto;
+    }
+
+    /* gráfico responsivo */
+    #diffChart {
+      width: 100% !important;
+      max-width: 100%;
+      min-height: 200px;
+      display: block;
+    }
+
+    /* BOTÓN GIGANTE DE TOP */
+    .big-top-wrapper {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5000;
+      pointer-events: none;
+    }
+    .big-top-btn {
+      width: 90px;
+      height: 90px;
+      border-radius: 999px;
+      font-size: 1.2rem;
+      border: none;
+      background: var(--accent);
+      color: #03140b;
+      box-shadow: 0 10px 25px rgba(0,0,0,.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      pointer-events: auto;
     }
 
     @media (max-width: 980px) {
@@ -223,7 +266,15 @@
       .topbar-title { font-size: .8rem; }
       .topbar-small { font-size: .65rem; }
     }
+
+    @media (min-width: 900px) {
+      .big-top-btn {
+        width: 80px;
+        height: 80px;
+      }
+    }
   </style>
+
   <!-- librerías para PDF y chart -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
@@ -347,6 +398,11 @@
 
   <!-- canvas oculto para PDF -->
   <canvas id="pdfChartCanvas" width="800" height="300"></canvas>
+
+  <!-- BOTÓN GIGANTE PARA TOP -->
+  <div class="big-top-wrapper">
+    <button id="bigTopBtn" class="big-top-btn">TOP</button>
+  </div>
 
   <script>
     // 🔧 CONFIGURACIÓN SPLASH: cambiá esta URL por la imagen que quieras mostrar
@@ -513,7 +569,8 @@
         cont.appendChild(btn);
       });
       const st = getSelectedStage();
-      document.getElementById("pointsTitle").textContent = st ? `Puntos de ${st.name}${st.locked ? " (finalizada)" : ""}` : "Puntos de la etapa";
+      document.getElementById("pointsTitle").textContent =
+        st ? `Puntos de ${st.name}${st.locked ? " (finalizada)" : ""}` : "Puntos de la etapa";
     }
 
     function addStage(){
@@ -993,19 +1050,42 @@
 
     function updateChart(stageIdToShow){
       const targetId = stageIdToShow ? Number(stageIdToShow) : selectedStageId;
-      const stage = stages.find(s=>s.id == targetId);
+      const stage = stages.find(s => s.id == targetId);
       if (!stage) return;
-      const donePoints = stage.points.filter(p=>p.realTimeMs != null).sort((a,b)=>a.order-b.order);
-      const labels = donePoints.map(p=>p.name || ("Punto " + p.order));
-      const diffs = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
-      const zeros = donePoints.map(()=>0);
+
+      const allPoints = stage.points.slice().sort((a,b) => a.order - b.order);
+      if (allPoints.length === 0) {
+        if (diffChart) {
+          diffChart.data.labels = [];
+          diffChart.data.datasets[0].data = [];
+          diffChart.data.datasets[1].data = [];
+          diffChart.update();
+        }
+        return;
+      }
+
+      const donePoints = allPoints.filter(p => p.realTimeMs != null);
+
+      let labels, diffs, zeros;
+
+      if (donePoints.length > 0) {
+        labels = donePoints.map(p => p.name || ("Punto " + p.order));
+        diffs  = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
+        zeros  = donePoints.map(() => 0);
+      } else {
+        labels = allPoints.map(p => p.name || ("Punto " + p.order));
+        diffs  = allPoints.map(() => 0);
+        zeros  = allPoints.map(() => 0);
+      }
 
       let minY = Math.min(0, ...diffs);
       let maxY = Math.max(0, ...diffs);
       const pad = 0.2;
-      minY -= pad; maxY += pad;
+      minY -= pad;
+      maxY += pad;
 
       const ctx = document.getElementById("diffChart").getContext("2d");
+
       if (!diffChart) {
         diffChart = new Chart(ctx, {
           type: 'line',
@@ -1033,6 +1113,7 @@
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
               y: {
                 title: { display: true, text: 'Segundos' },
@@ -1057,7 +1138,9 @@
       if (card.style.display === "none" || card.style.display === "") {
         card.style.display = "block";
         renderChartStageSelect();
-        updateChart();
+        setTimeout(() => {
+          updateChart();
+        }, 100);
         document.getElementById("toggleChartBtn").textContent = "📊 Ocultar gráfico";
       } else {
         card.style.display = "none";
@@ -1211,6 +1294,20 @@
       requestAnimationFrame(step);
     }
 
+    // TOP automático (barra espaciadora / botón grande)
+    function markNextPendingPoint() {
+      if (!raceState.startedAt || raceState.isPaused) return;
+      const stage = stages.find(s => s.id === selectedStageId);
+      if (!stage || stage.locked) return;
+      const nextPoint = stage.points
+        .slice()
+        .sort((a,b) => a.order - b.order)
+        .find(p => p.realTimeMs == null);
+      if (nextPoint) {
+        markPoint(nextPoint.id);
+      }
+    }
+
     document.getElementById("addBtn").onclick = addOrUpdatePoint;
     document.getElementById("cancelEditBtn").onclick = resetPointInputs;
     document.getElementById("startBtn").onclick = startRace;
@@ -1226,6 +1323,9 @@
       const current = JSON.parse(localStorage.getItem(STORAGE_CREW) || '{}');
       promptCrewData(current);
     };
+    document.getElementById("bigTopBtn").onclick = () => {
+      markNextPendingPoint();
+    };
 
     startClock();
     loadCrew();
@@ -1233,27 +1333,12 @@
     loadRaceState();
     startSplash();
 
-    // barra espaciadora = TOP del siguiente punto
-    function markNextPendingPoint() {
-      if (!raceState.startedAt || raceState.isPaused) return;
-      const stage = stages.find(s => s.id === selectedStageId);
-      if (!stage || stage.locked) return;
-      const nextPoint = stage.points
-        .slice()
-        .sort((a,b) => a.order - b.order)
-        .find(p => p.realTimeMs == null);
-      if (nextPoint) {
-        markPoint(nextPoint.id);
-      }
-    }
-
+    // barra espaciadora = TOP del siguiente punto (solo si no estás escribiendo)
     document.addEventListener("keydown", function(e) {
-      // 👉 si estoy escribiendo en un input/textarea/select, NO usar la barra como TOP
       const tag = e.target.tagName.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
         return;
       }
-
       if (e.code === "Space" || e.key === " ") {
         e.preventDefault();
         markNextPendingPoint();

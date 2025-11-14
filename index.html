@@ -218,7 +218,7 @@
       overflow-x: auto;
     }
 
-    /* gráfico responsivo */
+    /* gráfico responsivo (canvas de pantalla) */
     #diffChart {
       width: 100% !important;
       max-width: 100%;
@@ -275,10 +275,9 @@
     }
   </style>
 
-  <!-- librerías para PDF y chart -->
+  <!-- librerías para PDF (sin chart.js) -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <!-- SPLASH / BARRA DE CARGA -->
@@ -391,8 +390,8 @@
         <h2 style="margin-top:0; font-size:1rem;">Diferencia vs tiempo oficial</h2>
         <select id="chartStageSelect"></select>
       </div>
-      <canvas id="diffChart" height="120"></canvas>
-      <p class="muted">Valores en segundos. Positivo = llegaste tarde. Negativo = llegaste antes.</p>
+      <canvas id="diffChart" height="200"></canvas>
+      <p class="muted" id="chartHint">Valores en segundos. Positivo = llegaste tarde. Negativo = llegaste antes.</p>
     </div>
   </div>
 
@@ -417,7 +416,6 @@
 
     let raceState = { startedAt: null, isPaused: false, pausedElapsed: 0 };
     let raceTimerInterval = null;
-    let diffChart = null;
 
     // para edición
     let editingPointId = null;
@@ -819,65 +817,256 @@
       document.getElementById("cancelEditBtn").style.display = "inline-block";
     }
 
+    // ==== DIBUJO MANUAL DEL GRÁFICO EN CANVAS (PANTALLA) ====
+    function drawStageChartOnCanvas(stage, canvas) {
+      if (!canvas || !stage) return;
+      const ctx = canvas.getContext("2d");
+
+      // para que se vea más nítido en celu
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width && rect.height) {
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+      }
+      const width = canvas.width;
+      const height = canvas.height;
+
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,width,height);
+
+      const points = stage.points
+        .filter(p => p.realTimeMs != null)
+        .sort((a,b) => a.order - b.order);
+
+      if (!points.length) {
+        ctx.fillStyle = "#9ca3af";
+        ctx.font = `${12 * dpr}px system-ui`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Marcá al menos un TOP para ver diferencias", width/2, height/2);
+        return;
+      }
+
+      const diffs = points.map(p => (p.realTimeMs - p.idealTimeMs)/1000);
+      let minVal = Math.min(...diffs, 0);
+      let maxVal = Math.max(...diffs, 0);
+      const padVal = 0.2;
+      minVal -= padVal;
+      maxVal += padVal;
+      if (minVal === maxVal) {
+        minVal -= 1;
+        maxVal += 1;
+      }
+
+      const padLeft = 50 * dpr;
+      const padRight = 16 * dpr;
+      const padTop = 20 * dpr;
+      const padBottom = 30 * dpr;
+
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      function yForValue(v) {
+        const t = (v - minVal) / (maxVal - minVal);
+        return padTop + (1 - t) * plotH;
+      }
+      function xForIndex(i) {
+        if (points.length === 1) return padLeft + plotW/2;
+        return padLeft + (i / (points.length - 1)) * plotW;
+      }
+
+      // fondo
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0,0,width,height);
+
+      // ejes
+      ctx.strokeStyle = "#4b5563";
+      ctx.lineWidth = 1 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, padTop);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.lineTo(padLeft + plotW, padTop + plotH);
+      ctx.stroke();
+
+      // línea 0s
+      const y0 = yForValue(0);
+      ctx.strokeStyle = "#64748b";
+      ctx.setLineDash([4 * dpr, 4 * dpr]);
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y0);
+      ctx.lineTo(padLeft + plotW, y0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // curva
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth = 2 * dpr;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const y = yForValue(diffs[i]);
+        if (i === 0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+
+      // puntos
+      ctx.fillStyle = "#22c55e";
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const y = yForValue(diffs[i]);
+        ctx.beginPath();
+        ctx.arc(x, y, 3 * dpr, 0, Math.PI*2);
+        ctx.fill();
+      });
+
+      // labels Y (min / 0 / max)
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = `${10 * dpr}px system-ui`;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(maxVal.toFixed(1) + " s", padLeft - 4 * dpr, yForValue(maxVal));
+      ctx.fillText("0 s", padLeft - 4 * dpr, y0);
+      ctx.fillText(minVal.toFixed(1) + " s", padLeft - 4 * dpr, yForValue(minVal));
+
+      // labels X (nombres cortos)
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const label = (p.name || ("P" + p.order));
+        const shortLabel = label.length > 6 ? label.slice(0,6) + "…" : label;
+        ctx.fillText(shortLabel, x, padTop + plotH + 4 * dpr);
+      });
+    }
+
+    // ==== DIBUJO MANUAL PARA PDF (sobre pdfChartCanvas) ====
+    function drawStageChartForPDF(stage) {
+      const canvas = document.getElementById("pdfChartCanvas");
+      if (!canvas || !stage) return false;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,width,height);
+
+      const points = stage.points
+        .filter(p => p.realTimeMs != null)
+        .sort((a,b) => a.order - b.order);
+
+      if (!points.length) return false;
+
+      const diffs = points.map(p => (p.realTimeMs - p.idealTimeMs)/1000);
+      let minVal = Math.min(...diffs, 0);
+      let maxVal = Math.max(...diffs, 0);
+      const padVal = 0.2;
+      minVal -= padVal;
+      maxVal += padVal;
+      if (minVal === maxVal) {
+        minVal -= 1;
+        maxVal += 1;
+      }
+
+      const padLeft = 60;
+      const padRight = 30;
+      const padTop = 30;
+      const padBottom = 40;
+      const plotW = width - padLeft - padRight;
+      const plotH = height - padTop - padBottom;
+
+      function yForValue(v) {
+        const t = (v - minVal) / (maxVal - minVal);
+        return padTop + (1 - t) * plotH;
+      }
+      function xForIndex(i) {
+        if (points.length === 1) return padLeft + plotW/2;
+        return padLeft + (i / (points.length - 1)) * plotW;
+      }
+
+      // fondo blanco para PDF
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,width,height);
+
+      // ejes
+      ctx.strokeStyle = "#4b5563";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, padTop);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.lineTo(padLeft + plotW, padTop + plotH);
+      ctx.stroke();
+
+      // línea 0s
+      const y0 = yForValue(0);
+      ctx.strokeStyle = "#9ca3af";
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y0);
+      ctx.lineTo(padLeft + plotW, y0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // curva
+      ctx.strokeStyle = "#16a34a";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const y = yForValue(diffs[i]);
+        if (i === 0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+
+      // puntos
+      ctx.fillStyle = "#16a34a";
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const y = yForValue(diffs[i]);
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI*2);
+        ctx.fill();
+      });
+
+      // labels Y
+      ctx.fillStyle = "#111827";
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(maxVal.toFixed(1) + " s", padLeft - 6, yForValue(maxVal));
+      ctx.fillText("0 s", padLeft - 6, y0);
+      ctx.fillText(minVal.toFixed(1) + " s", padLeft - 6, yForValue(minVal));
+
+      // labels X
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      points.forEach((p, i) => {
+        const x = xForIndex(i);
+        const label = (p.name || ("P" + p.order));
+        const shortLabel = label.length > 8 ? label.slice(0,8) + "…" : label;
+        ctx.fillText(shortLabel, x, padTop + plotH + 6);
+      });
+
+      // título
+      ctx.font = "12px system-ui";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("Diferencia vs tiempo ideal (s)", padLeft, 8);
+
+      return true;
+    }
+
     function makeStageChartImage(stage) {
       return new Promise((resolve) => {
-        const canvas = document.getElementById("pdfChartCanvas");
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-
-        const donePoints = stage.points.filter(p=>p.realTimeMs != null).sort((a,b)=>a.order-b.order);
-        const labels = donePoints.map(p=>p.name || ("Punto " + p.order));
-        const diffs = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
-        const zeros = donePoints.map(()=>0);
-
-        if (donePoints.length === 0) {
+        const ok = drawStageChartForPDF(stage);
+        if (!ok) {
           resolve(null);
           return;
         }
-
-        const tmpChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: 'Ideal (0 s)',
-                data: zeros,
-                borderWidth: 1,
-                borderColor: '#64748b',
-                pointRadius: 0,
-                borderDash: [5,5],
-                tension: 0
-              },
-              {
-                label: 'Dif (s)',
-                data: diffs,
-                borderWidth: 2,
-                borderColor: '#22c55e',
-                backgroundColor: 'rgba(34,197,94,.15)',
-                tension: 0.25
-              }
-            ]
-          },
-          options: {
-            responsive: false,
-            animation: false,
-            scales: {
-              y: {
-                title: { display: true, text: 'Segundos' }
-              }
-            },
-            plugins: {
-              legend: { display: true }
-            }
-          }
-        });
-
-        setTimeout(() => {
-          const imgData = canvas.toDataURL("image/png");
-          tmpChart.destroy();
-          resolve(imgData);
-        }, 50);
+        const canvas = document.getElementById("pdfChartCanvas");
+        const imgData = canvas.toDataURL("image/png");
+        resolve(imgData);
       });
     }
 
@@ -1052,85 +1241,8 @@
       const targetId = stageIdToShow ? Number(stageIdToShow) : selectedStageId;
       const stage = stages.find(s => s.id == targetId);
       if (!stage) return;
-
-      const allPoints = stage.points.slice().sort((a,b) => a.order - b.order);
-      if (allPoints.length === 0) {
-        if (diffChart) {
-          diffChart.data.labels = [];
-          diffChart.data.datasets[0].data = [];
-          diffChart.data.datasets[1].data = [];
-          diffChart.update();
-        }
-        return;
-      }
-
-      const donePoints = allPoints.filter(p => p.realTimeMs != null);
-
-      let labels, diffs, zeros;
-
-      if (donePoints.length > 0) {
-        labels = donePoints.map(p => p.name || ("Punto " + p.order));
-        diffs  = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
-        zeros  = donePoints.map(() => 0);
-      } else {
-        labels = allPoints.map(p => p.name || ("Punto " + p.order));
-        diffs  = allPoints.map(() => 0);
-        zeros  = allPoints.map(() => 0);
-      }
-
-      let minY = Math.min(0, ...diffs);
-      let maxY = Math.max(0, ...diffs);
-      const pad = 0.2;
-      minY -= pad;
-      maxY += pad;
-
-      const ctx = document.getElementById("diffChart").getContext("2d");
-
-      if (!diffChart) {
-        diffChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [
-              {
-                label: 'Ideal (0 s)',
-                data: zeros,
-                borderWidth: 1,
-                borderColor: '#64748b',
-                pointRadius: 0,
-                borderDash: [5,5],
-                tension: 0
-              },
-              {
-                label: 'Dif (s)',
-                data: diffs,
-                borderWidth: 2,
-                borderColor: '#22c55e',
-                backgroundColor: 'rgba(34,197,94,.15)',
-                tension: 0.25
-              }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: {
-                title: { display: true, text: 'Segundos' },
-                suggestedMin: minY,
-                suggestedMax: maxY
-              }
-            }
-          }
-        });
-      } else {
-        diffChart.data.labels = labels;
-        diffChart.data.datasets[0].data = zeros;
-        diffChart.data.datasets[1].data = diffs;
-        diffChart.options.scales.y.suggestedMin = minY;
-        diffChart.options.scales.y.suggestedMax = maxY;
-        diffChart.update();
-      }
+      const canvas = document.getElementById("diffChart");
+      drawStageChartOnCanvas(stage, canvas);
     }
 
     function toggleChart(){
@@ -1213,6 +1325,12 @@
       renderStages();
       renderAutoSummary();
       updatePauseButtonText();
+
+      const canvas = document.getElementById("diffChart");
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      }
     }
 
     function clearAllPoints(){
@@ -1223,11 +1341,10 @@
       renderPointsTable();
       renderStages();
       renderAutoSummary();
-      if (diffChart) {
-        diffChart.data.labels = [];
-        diffChart.data.datasets[0].data = [];
-        diffChart.data.datasets[1].data = [];
-        diffChart.update();
+      const canvas = document.getElementById("diffChart");
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0,0,canvas.width,canvas.height);
       }
     }
 

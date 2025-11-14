@@ -18,6 +18,60 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
     }
+
+    /* SPLASH / BARRA DE CARGA */
+    #splash {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 55%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
+      transition: opacity .4s ease;
+    }
+    #splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .splash-inner {
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+    }
+    .splash-logo {
+      max-width: 180px;
+      max-height: 100px;
+      object-fit: contain;
+      margin: 0 auto 1rem auto;
+      display: block;
+    }
+    .splash-text {
+      font-size: .9rem;
+      margin-bottom: .6rem;
+      opacity: .85;
+    }
+    .splash-bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(148,163,184,.3);
+      overflow: hidden;
+      box-shadow: 0 0 12px rgba(15,23,42,.9);
+    }
+    .splash-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #16a34a, #22c55e, #a3e635);
+      transition: width .08s linear;
+    }
+    .splash-percent {
+      margin-top: .45rem;
+      font-size: .8rem;
+      opacity: .85;
+    }
+
     .topbar {
       background: rgba(15,23,42,.7);
       border-bottom: 1px solid rgba(226,232,240,.05);
@@ -108,11 +162,6 @@
       gap:.8rem;
       align-items: end;
     }
-    @media (max-width: 980px) {
-      .points-form { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-      .topbar { flex-direction: column; align-items: flex-start; }
-      .topbar-right { margin-top:.4rem; }
-    }
     .actions-cell { display:flex; gap:.3rem; flex-wrap:wrap; }
     #chartCard { display:none; }
     .muted { opacity:.6; font-size:.7rem; }
@@ -131,6 +180,7 @@
       display: flex;
       gap: .35rem;
       align-items: center;
+      font-size: .8rem;
     }
     .etapa-btn.active {
       background: rgba(34,197,94,.25);
@@ -152,6 +202,27 @@
     }
     .adj-up { color:#22c55e; }
     .adj-down { color:#ef4444; }
+
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    @media (max-width: 980px) {
+      .points-form { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .topbar-right { margin-top:.4rem; }
+    }
+
+    @media (max-width: 640px) {
+      .container { padding: 1rem .6rem; }
+      h1 { font-size: 1rem; }
+      #raceTime { font-size: 2.1rem; }
+      .controls { flex-direction: column; align-items:center; }
+      th, td { font-size: .75rem; white-space: nowrap; }
+      .topbar-title { font-size: .8rem; }
+      .topbar-small { font-size: .65rem; }
+    }
   </style>
   <!-- librerías para PDF y chart -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -159,6 +230,18 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <!-- SPLASH / BARRA DE CARGA -->
+  <div id="splash">
+    <div class="splash-inner">
+      <img id="splashLogo" class="splash-logo" src="" alt="Logo Regularidad" />
+      <div class="splash-text">Cargando aplicación de regularidad...</div>
+      <div class="splash-bar">
+        <div class="splash-bar-fill" id="splashBarFill"></div>
+      </div>
+      <div class="splash-percent" id="splashPercent">0%</div>
+    </div>
+  </div>
+
   <!-- barra piloto/navegante -->
   <div class="topbar">
     <div class="topbar-left">
@@ -186,8 +269,8 @@
   <div class="container">
     <!-- ETAPAS -->
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="margin-top:0">Etapas</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap;">
+        <h2 style="margin-top:0; font-size:1rem;">Etapas</h2>
         <button id="addStageBtn">➕ Agregar etapa</button>
       </div>
       <div id="stagesContainer" class="etapas-list"></div>
@@ -196,9 +279,9 @@
 
     <!-- Formulario -->
     <div class="card">
-      <h2 style="margin-top:0">Cargar POINT / Autocontrol (en etapa seleccionada)</h2>
+      <h2 style="margin-top:0; font-size:1rem;">Cargar POINT / Autocontrol (en etapa seleccionada)</h2>
       <div class="points-form">
-        <div><label>Nombre</label><input id="name" placeholder="AC 1, POINT 3..."/></div>
+        <div><label>Nombre</label><input id="name" placeholder="AC 1, POINT 3..." /></div>
         <div><label>Tipo</label>
           <select id="type">
             <option value="POINT">POINT</option>
@@ -220,39 +303,41 @@
 
     <!-- Tabla -->
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="margin-top:0" id="pointsTitle">Puntos de la etapa</h2>
-        <div style="display:flex; align-items:center; gap:.4rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap;">
+        <h2 style="margin-top:0; font-size:1rem;" id="pointsTitle">Puntos de la etapa</h2>
+        <div style="display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; justify-content:flex-end;">
           <span id="raceTimeInline" class="inline-timer">00:00:00.000</span>
           <button id="finalizeStageBtn" class="secondary">🔒 Finalizar etapa</button>
           <button id="reopenStageBtn" class="secondary" disabled>🔓 Reabrir etapa</button>
           <button id="toggleChartBtn" class="secondary">📊 Ver gráfico</button>
         </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Punto</th>
-            <th>Tipo</th>
-            <th>Km</th>
-            <th>Vel</th>
-            <th>Ideal</th>
-            <th>Real</th>
-            <th>Dif</th>
-            <th>Dif %</th>
-            <th>Ajuste</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="pointsTable"></tbody>
-      </table>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Punto</th>
+              <th>Tipo</th>
+              <th>Km</th>
+              <th>Vel</th>
+              <th>Ideal</th>
+              <th>Real</th>
+              <th>Dif</th>
+              <th>Dif %</th>
+              <th>Ajuste</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="pointsTable"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Gráfico en pantalla -->
     <div class="card" id="chartCard" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2 style="margin-top:0">Diferencia vs tiempo oficial</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap;">
+        <h2 style="margin-top:0; font-size:1rem;">Diferencia vs tiempo oficial</h2>
         <select id="chartStageSelect"></select>
       </div>
       <canvas id="diffChart" height="120"></canvas>
@@ -264,6 +349,10 @@
   <canvas id="pdfChartCanvas" width="800" height="300"></canvas>
 
   <script>
+    // 🔧 CONFIGURACIÓN SPLASH: cambiá esta URL por la imagen que quieras mostrar
+    const SPLASH_DURATION = 3500; // ms
+    const SPLASH_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Flag_of_Racing.svg/512px-Flag_of_Racing.svg.png"; // <- CAMBIÁ ESTA URL
+
     let stages = [];
     let selectedStageId = null;
     const STORAGE_STAGES = "regularidad_stages_v1";
@@ -517,7 +606,6 @@
         }
         const isAuto = p.type === "AUTO";
 
-        // armado del texto de ajuste con flecha
         let ajusteHtml = "—";
         if (p.adjustment && p.adjustment.possible) {
           let arrowHtml = "";
@@ -571,7 +659,6 @@
         btn.onclick = () => editPoint(btn.dataset.id);
       });
 
-      // habilitar / deshabilitar botones de etapa según estado
       const finalizeBtn = document.getElementById("finalizeStageBtn");
       const reopenBtn = document.getElementById("reopenStageBtn");
       if (stage.locked) {
@@ -617,7 +704,6 @@
       const idealMs = toMs(h,m,s,ml);
 
       if (editingPointId) {
-        // actualizar
         const idx = stage.points.findIndex(p=>p.id == editingPointId);
         if (idx !== -1) {
           const old = stage.points[idx];
@@ -628,11 +714,10 @@
             idealTimeMs: idealMs,
             km: km ? +km : null,
             speed: speed ? +speed : null,
-            adjustment: null // recalculamos más adelante al marcar
+            adjustment: null
           };
         }
       } else {
-        // agregar nuevo
         const newPoint = {
           id: Date.now() + Math.random(),
           order: stage.points.length ? Math.max(...stage.points.map(p=>p.order))+1 : 1,
@@ -659,10 +744,8 @@
       if (stage.locked) return;
       const p = stage.points.find(pt => pt.id == pointId);
       if (!p) return;
-      // cargo datos al form
       document.getElementById("name").value = p.name;
       document.getElementById("type").value = p.type;
-      // descomponer ideal
       let ms = p.idealTimeMs;
       const h = Math.floor(ms / 3600000); ms %= 3600000;
       const m = Math.floor(ms / 60000); ms %= 60000;
@@ -1095,6 +1178,39 @@
       renderPointsTable();
     }
 
+    // BARRA DE CARGA / SPLASH
+    function startSplash() {
+      const splash = document.getElementById("splash");
+      const bar = document.getElementById("splashBarFill");
+      const percentText = document.getElementById("splashPercent");
+      const logo = document.getElementById("splashLogo");
+      if (logo && SPLASH_IMAGE_URL) {
+        logo.src = SPLASH_IMAGE_URL;
+      }
+
+      const start = performance.now();
+
+      function step(now) {
+        const elapsed = now - start;
+        let pct = Math.min(100, Math.round((elapsed / SPLASH_DURATION) * 100));
+        bar.style.width = pct + "%";
+        percentText.textContent = pct + "%";
+
+        if (elapsed < SPLASH_DURATION) {
+          requestAnimationFrame(step);
+        } else {
+          bar.style.width = "100%";
+          percentText.textContent = "100%";
+          splash.classList.add("hidden");
+          setTimeout(() => {
+            splash.style.display = "none";
+          }, 400);
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
     document.getElementById("addBtn").onclick = addOrUpdatePoint;
     document.getElementById("cancelEditBtn").onclick = resetPointInputs;
     document.getElementById("startBtn").onclick = startRace;
@@ -1115,6 +1231,7 @@
     loadCrew();
     loadStages();
     loadRaceState();
+    startSplash();
 
     // barra espaciadora = TOP del siguiente punto
     function markNextPendingPoint() {
@@ -1131,6 +1248,12 @@
     }
 
     document.addEventListener("keydown", function(e) {
+      // 👉 si estoy escribiendo en un input/textarea/select, NO usar la barra como TOP
+      const tag = e.target.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
+        return;
+      }
+
       if (e.code === "Space" || e.key === " ") {
         e.preventDefault();
         markNextPendingPoint();
@@ -1139,5 +1262,3 @@
   </script>
 </body>
 </html>
-
-

@@ -523,9 +523,9 @@
           let arrowHtml = "";
           if (p.speed != null) {
             if (p.adjustment.speedKmh > p.speed + 0.01) {
-              arrowHtml = `<span class="adj-arrow adj-up">▲</span>`;
+              arrowHtml = `<span class=\"adj-arrow adj-up\">▲</span>`;
             } else if (p.adjustment.speedKmh < p.speed - 0.01) {
-              arrowHtml = `<span class="adj-arrow adj-down">▼</span>`;
+              arrowHtml = `<span class=\"adj-arrow adj-down\">▼</span>`;
             }
           }
           ajusteHtml = `${arrowHtml}Ir a ${p.adjustment.speedKmh.toFixed(1)} km/h → ${p.adjustment.toName}`;
@@ -998,147 +998,8 @@
     function startRace(){
       if (!raceState.startedAt){
         raceState.startedAt = Date.now();
-        raceState.isPaused = false;
-        raceState.pausedElapsed = 0;
-      } else if (raceState.isPaused){
-        raceState.startedAt = Date.now() - raceState.pausedElapsed;
-        raceState.isPaused = false;
-      }
-      saveRaceState();
-      startRaceTimerLoop();
-      updatePauseButtonText();
-    }
-
-    function pauseRace(){
-      if (!raceState.startedAt) return;
-      if (raceState.isPaused){
-        raceState.startedAt = Date.now() - raceState.pausedElapsed;
-        raceState.isPaused = false;
-        startRaceTimerLoop();
-      } else {
-        raceState.pausedElapsed = getCurrentElapsedMs();
-        raceState.isPaused = true;
-        clearInterval(raceTimerInterval);
-      }
-      saveRaceState();
-      updatePauseButtonText();
-      updateRaceDisplay();
-    }
-
-    function updatePauseButtonText(){
-      document.getElementById("pauseBtn").textContent = raceState.isPaused ? "Reanudar" : "Pausar";
-    }
-
-    function resetRace(){
-      const ok = confirm("¿Seguro que querés reiniciar el cronómetro? Esto borra los tiempos REALES de los puntos.");
-      if (!ok) return;
-      raceState = { startedAt: null, isPaused: false, pausedElapsed: 0 };
-      saveRaceState();
-      clearInterval(raceTimerInterval);
-      document.getElementById("raceTime").textContent = "00:00:00.000";
-      const inline = document.getElementById("raceTimeInline");
-      if (inline) inline.textContent = "00:00:00.000";
-      stages.forEach(s=>{
-        s.points = s.points.map(p=>({ ...p, realTimeMs: null, adjustment: null }));
-        s.locked = false;
-      });
-      saveStages();
-      renderPointsTable();
-      renderStages();
-      renderAutoSummary();
-      updatePauseButtonText();
-    }
-
-    function clearAllPoints(){
-      const ok = confirm("¿Seguro que querés borrar todos los puntos de TODAS las etapas?");
-      if (!ok) return;
-      stages.forEach(s=>{ s.points = []; s.locked = false; });
-      saveStages();
-      renderPointsTable();
-      renderStages();
-      renderAutoSummary();
-      if (diffChart) {
-        diffChart.data.labels = [];
-        diffChart.data.datasets[0].data = [];
-        diffChart.data.datasets[1].data = [];
-        diffChart.update();
       }
     }
-
-    function finalizeStage(){
-      const stage = getSelectedStage();
-      if (!stage) return;
-      if (stage.locked) {
-        alert("Esta etapa ya está finalizada.");
-        return;
-      }
-      const ok = confirm(`¿Finalizar la etapa "${stage.name}"? No vas a poder marcar ni borrar más puntos de esta etapa.`);
-      if (!ok) return;
-      stage.locked = true;
-      saveStages();
-      renderStages();
-      renderPointsTable();
-    }
-
-    function reopenStage(){
-      const stage = getSelectedStage();
-      if (!stage) return;
-      if (!stage.locked) {
-        alert("Esta etapa ya está abierta.");
-        return;
-      }
-      const ok = confirm(`¿Reabrir la etapa "${stage.name}"? Podrás volver a marcar y editar puntos.`);
-      if (!ok) return;
-      stage.locked = false;
-      saveStages();
-      renderStages();
-      renderPointsTable();
-    }
-
-    document.getElementById("addBtn").onclick = addOrUpdatePoint;
-    document.getElementById("cancelEditBtn").onclick = resetPointInputs;
-    document.getElementById("startBtn").onclick = startRace;
-    document.getElementById("pauseBtn").onclick = pauseRace;
-    document.getElementById("resetBtn").onclick = resetRace;
-    document.getElementById("clearBtn").onclick = clearAllPoints;
-    document.getElementById("toggleChartBtn").onclick = toggleChart;
-    document.getElementById("addStageBtn").onclick = addStage;
-    document.getElementById("exportBtn").onclick = exportPDF;
-    document.getElementById("finalizeStageBtn").onclick = finalizeStage;
-    document.getElementById("reopenStageBtn").onclick = reopenStage;
-    document.getElementById("changeCrewBtn").onclick = () => {
-      const current = JSON.parse(localStorage.getItem(STORAGE_CREW) || '{}');
-      promptCrewData(current);
-    };
-
-    startClock();
-    loadCrew();
-    loadStages();
-    loadRaceState();
-
-    // barra espaciadora = TOP del siguiente punto
-    function markNextPendingPoint() {
-      if (!raceState.startedAt || raceState.isPaused) return;
-      const stage = stages.find(s => s.id === selectedStageId);
-      if (!stage || stage.locked) return;
-      const nextPoint = stage.points
-        .slice()
-        .sort((a,b) => a.order - b.order)
-        .find(p => p.realTimeMs == null);
-      if (nextPoint) {
-        markPoint(nextPoint.id);
-      }
-    }
-
-    document.addEventListener("keydown", function(e) {
-      if (e.code === "Space" || e.key === " ") {
-        e.preventDefault();
-        markNextPendingPoint();
-      }
-    });
   </script>
 </body>
 </html>
-
-
-

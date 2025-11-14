@@ -1,15 +1,1143 @@
-<script>
-(function(){
-  const nameInput = document.getElementById('name');
-  if (!nameInput) return;
-  // Evita que handlers globales interrumpan la inserción del espacio en este input
-  nameInput.addEventListener('keydown', function(e) {
-    if (e.key === ' ' || e.code === 'Space' || e.keyCode === 32) {
-      e.stopPropagation(); // que no llegue a handlers globales
-      // no hacemos preventDefault(): dejamos que el navegador inserte el espacio
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Regularidad Web - Vallozzi</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1f2937;
+      --accent: #22c55e;
+      --danger: #ef4444;
+      --text: #e2e8f0;
     }
-  });
-  // Opcional: normalizar espacios en 'input' si se desea
-  // nameInput.addEventListener('input', function(){ this.value = this.value.trim().replace(/\s{2,}/g,' '); });
-})();
-</script>
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+    }
+    .topbar {
+      background: rgba(15,23,42,.7);
+      border-bottom: 1px solid rgba(226,232,240,.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .6rem 1.2rem;
+      gap: .5rem;
+      flex-wrap: wrap;
+    }
+    .topbar-left { display:flex; flex-direction:column; gap:.25rem; }
+    .topbar-title { font-weight:700; }
+    .topbar-small { font-size:.7rem; opacity:.7; }
+    .topbar-right { display:flex; gap:.5rem; align-items:center; }
+    header {
+      text-align: center;
+      padding: 1rem 0 0.5rem 0;
+    }
+    h1 { font-size: 1.1rem; margin: 0; opacity: 0.7; }
+    #raceTime {
+      display: block;
+      font-size: 2.8rem;
+      font-weight: 800;
+      margin-top: .3rem;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-shadow: 0 0 8px rgba(34,197,94,.3);
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: .7rem;
+      margin-top: .5rem;
+      flex-wrap: wrap;
+    }
+    .container {
+      padding: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card);
+      border-radius: .8rem;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,.15);
+    }
+    label { display:block; margin-bottom:.35rem; font-size:.75rem; opacity:.9; }
+    input, select {
+      width:100%; padding:.45rem .5rem; border-radius:.4rem;
+      border:1px solid rgba(226,232,240,.1);
+      background:rgba(15,23,42,.3); color:var(--text); outline:none;
+      box-sizing: border-box;
+    }
+    input:focus, select:focus { border-color:rgba(34,197,94,.5); }
+    button {
+      border:none; background:var(--accent); color:#03140b;
+      padding:.5rem .8rem; border-radius:.4rem; cursor:pointer;
+      font-weight:600;
+    }
+    button.secondary {
+      background:rgba(226,232,240,.1); color:var(--text);
+    }
+    button:disabled {
+      opacity:.4;
+      cursor:not-allowed;
+    }
+    table { width:100%; border-collapse:collapse; margin-top:.5rem; }
+    th,td { padding:.5rem; text-align:left; border-bottom:1px solid rgba(226,232,240,.05); font-size:.83rem; }
+    .tag { display:inline-block; padding:.15rem .5rem; border-radius:.4rem; font-size:.7rem; text-transform:uppercase; }
+    .tag-point { background:rgba(34,197,94,.12); color:#bbf7d0; }
+    .tag-auto { background:rgba(249,115,22,.12); color:#ffedd5; }
+    .warn-badge {
+      display:inline-block;
+      margin-left:.3rem;
+      background: #fbbf24;
+      color:#1f2937;
+      font-size:.6rem;
+      padding:.1rem .35rem;
+      border-radius:.35rem;
+      font-weight:700;
+    }
+    .diff-green { color:#22c55e; font-weight:600; }
+    .diff-red { color:#ef4444; font-weight:600; }
+    .points-form {
+      display:grid;
+      grid-template-columns: repeat(8, minmax(90px, 1fr));
+      gap:.8rem;
+      align-items: end;
+    }
+    @media (max-width: 980px) {
+      .points-form { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .topbar-right { margin-top:.4rem; }
+    }
+    .actions-cell { display:flex; gap:.3rem; flex-wrap:wrap; }
+    #chartCard { display:none; }
+    .muted { opacity:.6; font-size:.7rem; }
+    .etapas-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .etapa-btn {
+      border: none;
+      background: rgba(226,232,240,.05);
+      color: var(--text);
+      padding: .45rem .7rem;
+      border-radius: .45rem;
+      cursor: pointer;
+      display: flex;
+      gap: .35rem;
+      align-items: center;
+    }
+    .etapa-btn.active {
+      background: rgba(34,197,94,.25);
+      outline: 1px solid rgba(34,197,94,.5);
+    }
+    .etapa-name { cursor: pointer; }
+    .etapa-total { font-size: .7rem; opacity: .8; }
+    .footer-summary { margin-top: .5rem; font-weight: 600; }
+    .inline-timer {
+      font-size: .8rem;
+      font-weight: 600;
+      opacity: .8;
+      margin-right: .7rem;
+    }
+    #pdfChartCanvas { display:none; }
+    .adj-arrow {
+      margin-right:.25rem;
+      font-weight:700;
+    }
+    .adj-up { color:#22c55e; }
+    .adj-down { color:#ef4444; }
+  </style>
+  <!-- librerías para PDF y chart -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- barra piloto/navegante -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title" id="crewText">Piloto: - / Navegante: - / Vehículo: -</div>
+      <div class="topbar-small" id="dateText">Fecha: --/--/----</div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-small" id="clockText">Hora: --:--:--</div>
+      <button id="changeCrewBtn" class="secondary">Cambiar datos</button>
+    </div>
+  </div>
+
+  <header>
+    <h1>🟢 Regularidad - Cronómetro</h1>
+    <span id="raceTime">00:00:00.000</span>
+    <div class="controls">
+      <button id="startBtn">Largar</button>
+      <button id="pauseBtn" class="secondary">Pausar</button>
+      <button id="resetBtn" class="secondary">Reiniciar</button>
+      <button id="clearBtn" class="secondary">🗑️ Borrar puntos</button>
+      <button id="exportBtn" class="secondary">📄 Exportar PDF</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- ETAPAS -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin-top:0">Etapas</h2>
+        <button id="addStageBtn">➕ Agregar etapa</button>
+      </div>
+      <div id="stagesContainer" class="etapas-list"></div>
+      <p id="autoSummary" class="footer-summary"></p>
+    </div>
+
+    <!-- Formulario -->
+    <div class="card">
+      <h2 style="margin-top:0">Cargar POINT / Autocontrol (en etapa seleccionada)</h2>
+      <div class="points-form">
+        <div><label>Nombre</label><input id="name" placeholder="AC 1, POINT 3..."/></div>
+        <div><label>Tipo</label>
+          <select id="type">
+            <option value="POINT">POINT</option>
+            <option value="AUTO">Autocontrol</option>
+          </select>
+        </div>
+        <div><label>HS</label><input id="hs" type="number" min="0" value="0"/></div>
+        <div><label>MM</label><input id="mm" type="number" min="0" max="59" value="0"/></div>
+        <div><label>SS</label><input id="ss" type="number" min="0" max="59" value="0"/></div>
+        <div><label>ML</label><input id="ml" type="number" min="0" max="999" value="0"/></div>
+        <div><label>Km (acum.)</label><input id="km" type="number" step="0.01" placeholder="6.40"/></div>
+        <div><label>Velocidad (km/h)</label><input id="speed" type="number" step="0.1" placeholder="45"/></div>
+      </div>
+      <div style="margin-top:.8rem;">
+        <button id="addBtn">Agregar punto</button>
+        <button id="cancelEditBtn" class="secondary" style="display:none;">Cancelar edición</button>
+      </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin-top:0" id="pointsTitle">Puntos de la etapa</h2>
+        <div style="display:flex; align-items:center; gap:.4rem;">
+          <span id="raceTimeInline" class="inline-timer">00:00:00.000</span>
+          <button id="finalizeStageBtn" class="secondary">🔒 Finalizar etapa</button>
+          <button id="reopenStageBtn" class="secondary" disabled>🔓 Reabrir etapa</button>
+          <button id="toggleChartBtn" class="secondary">📊 Ver gráfico</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Punto</th>
+            <th>Tipo</th>
+            <th>Km</th>
+            <th>Vel</th>
+            <th>Ideal</th>
+            <th>Real</th>
+            <th>Dif</th>
+            <th>Dif %</th>
+            <th>Ajuste</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="pointsTable"></tbody>
+      </table>
+    </div>
+
+    <!-- Gráfico en pantalla -->
+    <div class="card" id="chartCard" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin-top:0">Diferencia vs tiempo oficial</h2>
+        <select id="chartStageSelect"></select>
+      </div>
+      <canvas id="diffChart" height="120"></canvas>
+      <p class="muted">Valores en segundos. Positivo = llegaste tarde. Negativo = llegaste antes.</p>
+    </div>
+  </div>
+
+  <!-- canvas oculto para PDF -->
+  <canvas id="pdfChartCanvas" width="800" height="300"></canvas>
+
+  <script>
+    let stages = [];
+    let selectedStageId = null;
+    const STORAGE_STAGES = "regularidad_stages_v1";
+    const STORAGE_RACE = "regularidad_race_v1";
+    const STORAGE_CREW = "regularidad_crew_v1";
+
+    let raceState = { startedAt: null, isPaused: false, pausedElapsed: 0 };
+    let raceTimerInterval = null;
+    let diffChart = null;
+
+    // para edición
+    let editingPointId = null;
+
+    function toMs(h,m,s,ml){ return (h*3600 + m*60 + s)*1000 + ml; }
+    function formatMs(ms){
+      if(ms==null) return "--";
+      const totalSeconds = Math.floor(ms/1000);
+      const h = Math.floor(totalSeconds/3600);
+      const m = Math.floor((totalSeconds%3600)/60);
+      const s = totalSeconds%60;
+      const ml = ms%1000;
+      return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${String(ml).padStart(3,"0")}`;
+    }
+    function getCurrentElapsedMs(){
+      if(!raceState.startedAt) return 0;
+      return raceState.isPaused ? raceState.pausedElapsed : Date.now() - raceState.startedAt;
+    }
+    function updateRaceDisplay(){
+      const formatted = formatMs(getCurrentElapsedMs());
+      document.getElementById("raceTime").textContent = formatted;
+      const inline = document.getElementById("raceTimeInline");
+      if (inline) inline.textContent = formatted;
+    }
+    function startRaceTimerLoop(){ clearInterval(raceTimerInterval); raceTimerInterval = setInterval(updateRaceDisplay, 100); }
+
+    function startClock(){
+      function tick(){
+        const now = new Date();
+        document.getElementById("dateText").textContent = "Fecha: " + now.toLocaleDateString();
+        document.getElementById("clockText").textContent = "Hora: " + now.toLocaleTimeString();
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
+
+    function setCrewText({pilot, nav, vehicle}) {
+      document.getElementById("crewText").textContent =
+        `Piloto: ${pilot} / Navegante: ${nav} / Vehículo: ${vehicle}`;
+    }
+
+    function promptCrewData(oldData) {
+      const pilot = prompt("Ingresá el nombre del PILOTO:", oldData?.pilot || "Piloto") || "Piloto";
+      const nav = prompt("Ingresá el nombre del NAVEGANTE:", oldData?.nav || "Navegante") || "Navegante";
+      const vehicle = prompt("Ingresá el VEHÍCULO:", oldData?.vehicle || "Vehículo") || "Vehículo";
+      const obj = { pilot, nav, vehicle };
+      localStorage.setItem(STORAGE_CREW, JSON.stringify(obj));
+      setCrewText(obj);
+    }
+
+    function loadCrew(){
+      const data = localStorage.getItem(STORAGE_CREW);
+      if (data){
+        const parsed = JSON.parse(data);
+        setCrewText({
+          pilot: parsed.pilot || "-",
+          nav: parsed.nav || "-",
+          vehicle: parsed.vehicle || "-"
+        });
+      } else {
+        promptCrewData(null);
+      }
+    }
+
+    function saveStages(){
+      localStorage.setItem(STORAGE_STAGES, JSON.stringify({stages, selectedStageId}));
+      renderAutoSummary();
+    }
+    function loadStages(){
+      const data = localStorage.getItem(STORAGE_STAGES);
+      if (data){
+        const parsed = JSON.parse(data);
+        stages = parsed.stages || [];
+        stages.forEach(s => { if (typeof s.locked === "undefined") s.locked = false; });
+        selectedStageId = parsed.selectedStageId || (stages[0]?.id ?? null);
+      } else {
+        const name = prompt("Nombre de la primera etapa:", "Pilar a Río Segundo") || "Etapa 1";
+        const first = { id: Date.now(), name, order: 1, points: [], locked: false };
+        stages = [first];
+        selectedStageId = first.id;
+      }
+      renderStages();
+      renderPointsTable();
+      renderChartStageSelect();
+      renderAutoSummary();
+    }
+
+    function saveRaceState(){ localStorage.setItem(STORAGE_RACE, JSON.stringify(raceState)); }
+    function loadRaceState(){
+      const data = localStorage.getItem(STORAGE_RACE);
+      if (data){
+        raceState = JSON.parse(data);
+        if (raceState.startedAt && !raceState.isPaused) startRaceTimerLoop();
+        updateRaceDisplay();
+        updatePauseButtonText();
+      } else {
+        updateRaceDisplay();
+      }
+    }
+
+    function getSelectedStage(){ return stages.find(s => s.id === selectedStageId) || null; }
+    function calcStageDiff(stage){
+      let total = 0;
+      stage.points.forEach(p=>{
+        if (p.realTimeMs != null) total += (p.realTimeMs - p.idealTimeMs)/1000;
+      });
+      return total;
+    }
+
+    function renameStage(id){
+      const stage = stages.find(s=>s.id===id);
+      if (!stage) return;
+      const name = prompt("Nuevo nombre de la etapa:", stage.name);
+      if (!name) return;
+      stage.name = name;
+      saveStages();
+      renderStages();
+      renderPointsTable();
+      renderChartStageSelect();
+    }
+
+    function renderStages(){
+      const cont = document.getElementById("stagesContainer");
+      cont.innerHTML = "";
+      stages.sort((a,b)=>a.order-b.order).forEach(stage=>{
+        const btn = document.createElement("div");
+        btn.className = "etapa-btn" + (stage.id === selectedStageId ? " active" : "");
+        const total = calcStageDiff(stage);
+        btn.innerHTML = `
+          <span class="etapa-name">${stage.name}${stage.locked ? " (finalizada)" : ""}</span>
+          <span class="etapa-total">${total>0?"+":""}${total.toFixed(2)} s</span>
+          <span data-del="1" style="background:rgba(239,68,68,.16);padding:0 .3rem;border-radius:.3rem;cursor:pointer;">×</span>
+        `;
+        btn.addEventListener("click", (e)=>{
+          const del = e.target.getAttribute("data-del");
+          const nameClick = e.target.classList.contains("etapa-name");
+          if (del) {
+            deleteStage(stage.id);
+          } else if (nameClick) {
+            renameStage(stage.id);
+          } else {
+            selectedStageId = stage.id;
+            saveStages();
+            renderStages();
+            renderPointsTable();
+            renderChartStageSelect();
+          }
+        });
+        cont.appendChild(btn);
+      });
+      const st = getSelectedStage();
+      document.getElementById("pointsTitle").textContent = st ? `Puntos de ${st.name}${st.locked ? " (finalizada)" : ""}` : "Puntos de la etapa";
+    }
+
+    function addStage(){
+      const name = prompt("Nombre de la etapa:", `Etapa ${stages.length+1}`);
+      if (!name) return;
+      const newStage = {
+        id: Date.now() + Math.random(),
+        name,
+        order: stages.length ? Math.max(...stages.map(s=>s.order)) + 1 : 1,
+        points: [],
+        locked: false
+      };
+      stages.push(newStage);
+      selectedStageId = newStage.id;
+      saveStages();
+      renderStages();
+      renderPointsTable();
+      renderChartStageSelect();
+    }
+
+    function deleteStage(id){
+      const stage = stages.find(s=>s.id===id);
+      const ok = confirm(`¿Eliminar la etapa "${stage?.name}" y todos sus puntos?`);
+      if (!ok) return;
+      stages = stages.filter(s=>s.id!==id);
+      if (!stages.length) {
+        const firstName = prompt("Nombre de la etapa:", "Etapa 1") || "Etapa 1";
+        const first = { id: Date.now(), name: firstName, order: 1, points: [], locked: false };
+        stages = [first];
+        selectedStageId = first.id;
+      } else {
+        selectedStageId = stages[0].id;
+      }
+      saveStages();
+      renderStages();
+      renderPointsTable();
+      renderChartStageSelect();
+    }
+
+    function calcAdjustmentForPoint(stage, pointIdx) {
+      const p = stage.points[pointIdx];
+      if (p.realTimeMs == null) return null;
+      const diffSec = (p.realTimeMs - p.idealTimeMs) / 1000;
+      const next = stage.points
+        .filter(x => x.order > p.order)
+        .sort((a,b) => a.order - b.order)[0];
+      if (!next) return { possible: false, reason: "Último punto" };
+
+      const idealSegMs = next.idealTimeMs - p.idealTimeMs;
+      if (idealSegMs <= 0) return { possible: false, reason: "Tiempo 0" };
+
+      let distKm = null;
+      if (p.km != null && next.km != null) {
+        distKm = next.km - p.km;
+      } else if (p.speed != null) {
+        distKm = p.speed * (idealSegMs / 3600000);
+      }
+
+      if (distKm == null || distKm <= 0) {
+        return { possible: false, reason: "Sin km/vel" };
+      }
+
+      const desiredSegMs = idealSegMs - diffSec * 1000;
+      if (desiredSegMs <= 200) return { possible: false, reason: "No alcanza" };
+
+      const speedKmh = distKm * 3600000 / desiredSegMs;
+
+      return {
+        possible: true,
+        speedKmh,
+        durationMs: desiredSegMs,
+        toName: next.name
+      };
+    }
+
+    function renderPointsTable(){
+      const tbody = document.getElementById("pointsTable");
+      tbody.innerHTML = "";
+      const stage = getSelectedStage();
+      if (!stage) return;
+      stage.points.sort((a,b)=>a.order-b.order).forEach(p=>{
+        const diffMs = p.realTimeMs != null ? p.realTimeMs - p.idealTimeMs : null;
+        const diffClass = diffMs != null ? (diffMs > 0 ? "diff-red" : "diff-green") : "";
+        let diffPctText = "—";
+        let diffPctClass = "";
+        if (p.realTimeMs != null && p.idealTimeMs > 0) {
+          const diffPct = ( (p.realTimeMs - p.idealTimeMs) / p.idealTimeMs ) * 100;
+          diffPctText = (diffPct > 0 ? "+" : "") + diffPct.toFixed(2) + " %";
+          diffPctClass = diffPct > 0 ? "diff-red" : "diff-green";
+        }
+        const isAuto = p.type === "AUTO";
+
+        // armado del texto de ajuste con flecha
+        let ajusteHtml = "—";
+        if (p.adjustment && p.adjustment.possible) {
+          let arrowHtml = "";
+          if (p.speed != null) {
+            if (p.adjustment.speedKmh > p.speed + 0.01) {
+              arrowHtml = `<span class="adj-arrow adj-up">▲</span>`;
+            } else if (p.adjustment.speedKmh < p.speed - 0.01) {
+              arrowHtml = `<span class="adj-arrow adj-down">▼</span>`;
+            }
+          }
+          ajusteHtml = `${arrowHtml}Ir a ${p.adjustment.speedKmh.toFixed(1)} km/h → ${p.adjustment.toName}`;
+        } else if (p.adjustment) {
+          ajusteHtml = p.adjustment.reason;
+        }
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${p.order}</td>
+          <td>${p.name}</td>
+          <td>
+            <span class="tag ${isAuto ? "tag-auto" : "tag-point"}">${p.type}</span>
+            ${isAuto ? '<span class="warn-badge">⚠</span>' : ''}
+          </td>
+          <td>${p.km ?? ""}</td>
+          <td>${p.speed ?? ""}</td>
+          <td>${formatMs(p.idealTimeMs)}</td>
+          <td>${p.realTimeMs != null ? formatMs(p.realTimeMs) : "--"}</td>
+          <td class="${diffClass}">${diffMs != null ? ((diffMs>0?"+":"") + (diffMs/1000).toFixed(1) + " s") : "--"}</td>
+          <td class="${diffPctClass}">${diffPctText}</td>
+          <td>${ajusteHtml}</td>
+          <td class="actions-cell">
+            ${(!stage.locked && p.realTimeMs == null) ? `<button class="markBtn" data-id="${p.id}">TOP</button>` : ""}
+            ${(!stage.locked && p.realTimeMs != null) ? `<button class="restoreBtn secondary" data-id="${p.id}">Restablecer</button>` : ""}
+            ${!stage.locked ? `<button class="editBtn secondary" data-id="${p.id}">Editar</button>` : ""}
+            ${!stage.locked ? `<button class="delBtn secondary" data-id="${p.id}">X</button>` : ""}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.querySelectorAll(".markBtn").forEach(btn=>{
+        btn.onclick = () => markPoint(btn.dataset.id);
+      });
+      document.querySelectorAll(".delBtn").forEach(btn=>{
+        btn.onclick = () => deletePoint(btn.dataset.id);
+      });
+      document.querySelectorAll(".restoreBtn").forEach(btn=>{
+        btn.onclick = () => restorePoint(btn.dataset.id);
+      });
+      document.querySelectorAll(".editBtn").forEach(btn=>{
+        btn.onclick = () => editPoint(btn.dataset.id);
+      });
+
+      // habilitar / deshabilitar botones de etapa según estado
+      const finalizeBtn = document.getElementById("finalizeStageBtn");
+      const reopenBtn = document.getElementById("reopenStageBtn");
+      if (stage.locked) {
+        finalizeBtn.disabled = true;
+        reopenBtn.disabled = false;
+      } else {
+        finalizeBtn.disabled = false;
+        reopenBtn.disabled = true;
+      }
+
+      if (document.getElementById("chartCard").style.display !== "none") {
+        updateChart();
+      }
+    }
+
+    function resetPointInputs(){
+      document.getElementById("name").value = "";
+      document.getElementById("hs").value = 0;
+      document.getElementById("mm").value = 0;
+      document.getElementById("ss").value = 0;
+      document.getElementById("ml").value = 0;
+      document.getElementById("km").value = "";
+      document.getElementById("speed").value = "";
+      document.getElementById("type").value = "POINT";
+      editingPointId = null;
+      document.getElementById("addBtn").textContent = "Agregar punto";
+      document.getElementById("cancelEditBtn").style.display = "none";
+    }
+
+    function addOrUpdatePoint(){
+      const stage = getSelectedStage();
+      if (!stage) return alert("Primero creá / seleccioná una etapa.");
+      if (stage.locked) return alert("Esta etapa está finalizada. No podés modificarla.");
+
+      const n = document.getElementById("name").value || ("Punto " + (stage.points.length+1));
+      const t = document.getElementById("type").value;
+      const h = +document.getElementById("hs").value || 0;
+      const m = +document.getElementById("mm").value || 0;
+      const s = +document.getElementById("ss").value || 0;
+      const ml = +document.getElementById("ml").value || 0;
+      const km = document.getElementById("km").value;
+      const speed = document.getElementById("speed").value;
+      const idealMs = toMs(h,m,s,ml);
+
+      if (editingPointId) {
+        // actualizar
+        const idx = stage.points.findIndex(p=>p.id == editingPointId);
+        if (idx !== -1) {
+          const old = stage.points[idx];
+          stage.points[idx] = {
+            ...old,
+            name: n,
+            type: t,
+            idealTimeMs: idealMs,
+            km: km ? +km : null,
+            speed: speed ? +speed : null,
+            adjustment: null // recalculamos más adelante al marcar
+          };
+        }
+      } else {
+        // agregar nuevo
+        const newPoint = {
+          id: Date.now() + Math.random(),
+          order: stage.points.length ? Math.max(...stage.points.map(p=>p.order))+1 : 1,
+          name: n,
+          type: t,
+          idealTimeMs: idealMs,
+          km: km ? +km : null,
+          speed: speed ? +speed : null,
+          realTimeMs: null,
+          adjustment: null
+        };
+        stage.points.push(newPoint);
+      }
+
+      saveStages();
+      renderPointsTable();
+      renderStages();
+      resetPointInputs();
+    }
+
+    function editPoint(pointId){
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (stage.locked) return;
+      const p = stage.points.find(pt => pt.id == pointId);
+      if (!p) return;
+      // cargo datos al form
+      document.getElementById("name").value = p.name;
+      document.getElementById("type").value = p.type;
+      // descomponer ideal
+      let ms = p.idealTimeMs;
+      const h = Math.floor(ms / 3600000); ms %= 3600000;
+      const m = Math.floor(ms / 60000); ms %= 60000;
+      const s = Math.floor(ms / 1000);
+      const ml = ms % 1000;
+      document.getElementById("hs").value = h;
+      document.getElementById("mm").value = m;
+      document.getElementById("ss").value = s;
+      document.getElementById("ml").value = ml;
+      document.getElementById("km").value = p.km ?? "";
+      document.getElementById("speed").value = p.speed ?? "";
+      editingPointId = p.id;
+      document.getElementById("addBtn").textContent = "Guardar cambios";
+      document.getElementById("cancelEditBtn").style.display = "inline-block";
+    }
+
+    function makeStageChartImage(stage) {
+      return new Promise((resolve) => {
+        const canvas = document.getElementById("pdfChartCanvas");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        const donePoints = stage.points.filter(p=>p.realTimeMs != null).sort((a,b)=>a.order-b.order);
+        const labels = donePoints.map(p=>p.name || ("Punto " + p.order));
+        const diffs = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
+        const zeros = donePoints.map(()=>0);
+
+        if (donePoints.length === 0) {
+          resolve(null);
+          return;
+        }
+
+        const tmpChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Ideal (0 s)',
+                data: zeros,
+                borderWidth: 1,
+                borderColor: '#64748b',
+                pointRadius: 0,
+                borderDash: [5,5],
+                tension: 0
+              },
+              {
+                label: 'Dif (s)',
+                data: diffs,
+                borderWidth: 2,
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34,197,94,.15)',
+                tension: 0.25
+              }
+            ]
+          },
+          options: {
+            responsive: false,
+            animation: false,
+            scales: {
+              y: {
+                title: { display: true, text: 'Segundos' }
+              }
+            },
+            plugins: {
+              legend: { display: true }
+            }
+          }
+        });
+
+        setTimeout(() => {
+          const imgData = canvas.toDataURL("image/png");
+          tmpChart.destroy();
+          resolve(imgData);
+        }, 50);
+      });
+    }
+
+    async function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "landscape" });
+
+      const crewData = JSON.parse(localStorage.getItem(STORAGE_CREW) || '{"pilot":"-","nav":"-","vehicle":"-"}');
+
+      doc.setFontSize(18);
+      doc.text("📋 Reporte de Regularidad", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Piloto: ${crewData.pilot}   Navegante: ${crewData.nav}   Vehículo: ${crewData.vehicle}`, 14, 21);
+      doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 27);
+
+      let y = 35;
+
+      for (const stage of stages) {
+        doc.setFontSize(14);
+        doc.text(`Etapa: ${stage.name}${stage.locked ? " (finalizada)" : ""}`, 14, y);
+        y += 6;
+
+        const rows = stage.points
+          .sort((a, b) => a.order - b.order)
+          .map(p => {
+            const diff = (p.realTimeMs != null)
+              ? ((p.realTimeMs - p.idealTimeMs) / 1000).toFixed(2)
+              : "";
+            let diffPct = "";
+            if (p.realTimeMs != null && p.idealTimeMs > 0) {
+              const pct = ((p.realTimeMs - p.idealTimeMs) / p.idealTimeMs) * 100;
+              diffPct = (pct > 0 ? "+" : "") + pct.toFixed(2) + " %";
+            }
+            let adjText = "—";
+            if (p.adjustment && p.adjustment.possible) {
+              let arrowTxt = "";
+              if (p.speed != null) {
+                if (p.adjustment.speedKmh > p.speed + 0.01) arrowTxt = "↑ ";
+                else if (p.adjustment.speedKmh < p.speed - 0.01) arrowTxt = "↓ ";
+              }
+              adjText = `${arrowTxt}Ir a ${p.adjustment.speedKmh.toFixed(1)} km/h → ${p.adjustment.toName}`;
+            } else if (p.adjustment) {
+              adjText = p.adjustment.reason;
+            }
+            return [
+              p.order,
+              p.name,
+              p.type,
+              p.km ?? "",
+              p.speed ?? "",
+              formatMs(p.idealTimeMs),
+              formatMs(p.realTimeMs),
+              diff,
+              diffPct,
+              adjText
+            ];
+          });
+
+        doc.autoTable({
+          startY: y,
+          head: [["#", "Punto", "Tipo", "Km", "Vel (km/h)", "Ideal", "Real", "Dif (s)", "Dif (%)", "Ajuste"]],
+          body: rows,
+          theme: "striped",
+          headStyles: { fillColor: [34, 197, 94], textColor: 0 },
+          styles: { fontSize: 8 },
+          columnStyles: {
+            9: { cellWidth: 60 }
+          }
+        });
+
+        y = doc.lastAutoTable.finalY + 4;
+
+        const imgData = await makeStageChartImage(stage);
+        if (imgData) {
+          const imgWidth = 250;
+          const imgHeight = 90;
+          if (y + imgHeight > 190) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text("Gráfico de diferencias", 14, y);
+          y += 3;
+          doc.addImage(imgData, "PNG", 14, y, imgWidth, imgHeight);
+          y += imgHeight + 8;
+        } else {
+          y += 4;
+        }
+
+        if (y > 185) {
+          doc.addPage();
+          y = 20;
+        }
+      }
+
+      let totalAuto = 0;
+      stages.forEach(stage => {
+        stage.points.forEach(p => {
+          if (p.type === "AUTO" && p.realTimeMs != null) {
+            totalAuto += (p.realTimeMs - p.idealTimeMs) / 1000;
+          }
+        });
+      });
+      doc.setFontSize(12);
+      if (y > 180) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(`Total AUTOCONTROLES: ${totalAuto > 0 ? "+" : ""}${totalAuto.toFixed(2)} s`, 14, y + 5);
+
+      const fecha = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+      doc.save(`regularidad-${fecha}.pdf`);
+    }
+
+    function markPoint(pointId){
+      if (!raceState.startedAt) return alert("Primero largá la carrera.");
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (stage.locked) return alert("Esta etapa está finalizada. No podés marcar más puntos.");
+      const idx = stage.points.findIndex(p=>p.id == pointId);
+      if (idx === -1) return;
+      const realMs = getCurrentElapsedMs();
+      stage.points[idx] = { ...stage.points[idx], realTimeMs: realMs };
+      const adj = calcAdjustmentForPoint(stage, idx);
+      stage.points[idx].adjustment = adj;
+      saveStages();
+      renderPointsTable();
+      renderStages();
+    }
+
+    function restorePoint(pointId){
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (stage.locked) return alert("Esta etapa está finalizada. No podés restablecer.");
+      const idx = stage.points.findIndex(p=>p.id == pointId);
+      if (idx === -1) return;
+      const ok = confirm("¿Restablecer este punto? Se borrará el tiempo real.");
+      if (!ok) return;
+      stage.points[idx].realTimeMs = null;
+      stage.points[idx].adjustment = null;
+      saveStages();
+      renderPointsTable();
+      renderStages();
+    }
+
+    function deletePoint(pointId){
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (stage.locked) return alert("Esta etapa está finalizada. No podés eliminar puntos.");
+      const point = stage.points.find(p=>p.id == pointId);
+      const ok = confirm(`¿Seguro que querés eliminar el punto "${point?.name ?? ""}"?`);
+      if (!ok) return;
+      stage.points = stage.points.filter(p=>p.id != pointId);
+      saveStages();
+      renderPointsTable();
+      renderStages();
+    }
+
+    function renderChartStageSelect(){
+      const sel = document.getElementById("chartStageSelect");
+      sel.innerHTML = "";
+      stages.sort((a,b)=>a.order-b.order).forEach(s=>{
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.name + (s.locked ? " (finalizada)" : "");
+        if (s.id === selectedStageId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = () => updateChart(sel.value);
+    }
+
+    function updateChart(stageIdToShow){
+      const targetId = stageIdToShow ? Number(stageIdToShow) : selectedStageId;
+      const stage = stages.find(s=>s.id == targetId);
+      if (!stage) return;
+      const donePoints = stage.points.filter(p=>p.realTimeMs != null).sort((a,b)=>a.order-b.order);
+      const labels = donePoints.map(p=>p.name || ("Punto " + p.order));
+      const diffs = donePoints.map(p => Number(((p.realTimeMs - p.idealTimeMs)/1000).toFixed(2)));
+      const zeros = donePoints.map(()=>0);
+
+      let minY = Math.min(0, ...diffs);
+      let maxY = Math.max(0, ...diffs);
+      const pad = 0.2;
+      minY -= pad; maxY += pad;
+
+      const ctx = document.getElementById("diffChart").getContext("2d");
+      if (!diffChart) {
+        diffChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Ideal (0 s)',
+                data: zeros,
+                borderWidth: 1,
+                borderColor: '#64748b',
+                pointRadius: 0,
+                borderDash: [5,5],
+                tension: 0
+              },
+              {
+                label: 'Dif (s)',
+                data: diffs,
+                borderWidth: 2,
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34,197,94,.15)',
+                tension: 0.25
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                title: { display: true, text: 'Segundos' },
+                suggestedMin: minY,
+                suggestedMax: maxY
+              }
+            }
+          }
+        });
+      } else {
+        diffChart.data.labels = labels;
+        diffChart.data.datasets[0].data = zeros;
+        diffChart.data.datasets[1].data = diffs;
+        diffChart.options.scales.y.suggestedMin = minY;
+        diffChart.options.scales.y.suggestedMax = maxY;
+        diffChart.update();
+      }
+    }
+
+    function toggleChart(){
+      const card = document.getElementById("chartCard");
+      if (card.style.display === "none" || card.style.display === "") {
+        card.style.display = "block";
+        renderChartStageSelect();
+        updateChart();
+        document.getElementById("toggleChartBtn").textContent = "📊 Ocultar gráfico";
+      } else {
+        card.style.display = "none";
+        document.getElementById("toggleChartBtn").textContent = "📊 Ver gráfico";
+      }
+    }
+
+    function renderAutoSummary(){
+      let totalAuto = 0;
+      stages.forEach(stage=>{
+        stage.points.forEach(p=>{
+          if (p.type === "AUTO" && p.realTimeMs != null) {
+            totalAuto += (p.realTimeMs - p.idealTimeMs)/1000;
+          }
+        });
+      });
+      document.getElementById("autoSummary").textContent =
+        `Total AUTOCONTROLES (todas las etapas): ${totalAuto>0?"+":""}${totalAuto.toFixed(2)} s`;
+    }
+
+    function startRace(){
+      if (!raceState.startedAt){
+        raceState.startedAt = Date.now();
+        raceState.isPaused = false;
+        raceState.pausedElapsed = 0;
+      } else if (raceState.isPaused){
+        raceState.startedAt = Date.now() - raceState.pausedElapsed;
+        raceState.isPaused = false;
+      }
+      saveRaceState();
+      startRaceTimerLoop();
+      updatePauseButtonText();
+    }
+
+    function pauseRace(){
+      if (!raceState.startedAt) return;
+      if (raceState.isPaused){
+        raceState.startedAt = Date.now() - raceState.pausedElapsed;
+        raceState.isPaused = false;
+        startRaceTimerLoop();
+      } else {
+        raceState.pausedElapsed = getCurrentElapsedMs();
+        raceState.isPaused = true;
+        clearInterval(raceTimerInterval);
+      }
+      saveRaceState();
+      updatePauseButtonText();
+      updateRaceDisplay();
+    }
+
+    function updatePauseButtonText(){
+      document.getElementById("pauseBtn").textContent = raceState.isPaused ? "Reanudar" : "Pausar";
+    }
+
+    function resetRace(){
+      const ok = confirm("¿Seguro que querés reiniciar el cronómetro? Esto borra los tiempos REALES de los puntos.");
+      if (!ok) return;
+      raceState = { startedAt: null, isPaused: false, pausedElapsed: 0 };
+      saveRaceState();
+      clearInterval(raceTimerInterval);
+      document.getElementById("raceTime").textContent = "00:00:00.000";
+      const inline = document.getElementById("raceTimeInline");
+      if (inline) inline.textContent = "00:00:00.000";
+      stages.forEach(s=>{
+        s.points = s.points.map(p=>({ ...p, realTimeMs: null, adjustment: null }));
+        s.locked = false;
+      });
+      saveStages();
+      renderPointsTable();
+      renderStages();
+      renderAutoSummary();
+      updatePauseButtonText();
+    }
+
+    function clearAllPoints(){
+      const ok = confirm("¿Seguro que querés borrar todos los puntos de TODAS las etapas?");
+      if (!ok) return;
+      stages.forEach(s=>{ s.points = []; s.locked = false; });
+      saveStages();
+      renderPointsTable();
+      renderStages();
+      renderAutoSummary();
+      if (diffChart) {
+        diffChart.data.labels = [];
+        diffChart.data.datasets[0].data = [];
+        diffChart.data.datasets[1].data = [];
+        diffChart.update();
+      }
+    }
+
+    function finalizeStage(){
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (stage.locked) {
+        alert("Esta etapa ya está finalizada.");
+        return;
+      }
+      const ok = confirm(`¿Finalizar la etapa "${stage.name}"? No vas a poder marcar ni borrar más puntos de esta etapa.`);
+      if (!ok) return;
+      stage.locked = true;
+      saveStages();
+      renderStages();
+      renderPointsTable();
+    }
+
+    function reopenStage(){
+      const stage = getSelectedStage();
+      if (!stage) return;
+      if (!stage.locked) {
+        alert("Esta etapa ya está abierta.");
+        return;
+      }
+      const ok = confirm(`¿Reabrir la etapa "${stage.name}"? Podrás volver a marcar y editar puntos.`);
+      if (!ok) return;
+      stage.locked = false;
+      saveStages();
+      renderStages();
+      renderPointsTable();
+    }
+
+    document.getElementById("addBtn").onclick = addOrUpdatePoint;
+    document.getElementById("cancelEditBtn").onclick = resetPointInputs;
+    document.getElementById("startBtn").onclick = startRace;
+    document.getElementById("pauseBtn").onclick = pauseRace;
+    document.getElementById("resetBtn").onclick = resetRace;
+    document.getElementById("clearBtn").onclick = clearAllPoints;
+    document.getElementById("toggleChartBtn").onclick = toggleChart;
+    document.getElementById("addStageBtn").onclick = addStage;
+    document.getElementById("exportBtn").onclick = exportPDF;
+    document.getElementById("finalizeStageBtn").onclick = finalizeStage;
+    document.getElementById("reopenStageBtn").onclick = reopenStage;
+    document.getElementById("changeCrewBtn").onclick = () => {
+      const current = JSON.parse(localStorage.getItem(STORAGE_CREW) || '{}');
+      promptCrewData(current);
+    };
+
+    startClock();
+    loadCrew();
+    loadStages();
+    loadRaceState();
+
+    // barra espaciadora = TOP del siguiente punto
+    function markNextPendingPoint() {
+      if (!raceState.startedAt || raceState.isPaused) return;
+      const stage = stages.find(s => s.id === selectedStageId);
+      if (!stage || stage.locked) return;
+      const nextPoint = stage.points
+        .slice()
+        .sort((a,b) => a.order - b.order)
+        .find(p => p.realTimeMs == null);
+      if (nextPoint) {
+        markPoint(nextPoint.id);
+      }
+    }
+
+    document.addEventListener("keydown", function(e) {
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        markNextPendingPoint();
+      }
+    });
+  </script>
+</body>
+</html>
+
+
